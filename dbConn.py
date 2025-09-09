@@ -13,8 +13,15 @@ def getCreds(dbInfo,catdbinst):
         return None
     try:
         virtualName=f"{application}-{env}-{serverName}-{dbName}"
-        cat_cyberark_cmd = f"/opt/CyberArk/CyberArkCLI/cyberarkcli getpassword -p {catdbinst} -v {virtualName} --output json"
-        args = shlex.split(cat_cyberark_cmd)
+        cyberark_cli_path = os.environ.get('CYBERARK_CLI_PATH', '/opt/CyberArk/CyberArkCLI/cyberarkcli')
+        virtual_name = f"{application}-{env}-{server_name}-{db_name}"
+        cmd = [
+            cyberark_cli_path, 'getpassword',
+            '-p', catdbinst,
+            '-v', virtual_name,
+            '--output', 'json'
+        ]
+        # args = shlex.split(cat_cyberark_cmd)
         result = subprocess.run(args, check=True, text=True, capture_output=True)
         tempCred=result.stdout.strip()
         cyber_ark_creds=tempCred.split(',')
