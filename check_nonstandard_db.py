@@ -1,46 +1,46 @@
+#!/usr/bin/env python3
+
 import os
-import re
+import subprocess
 import sys
 
-# Get env variable
-env_val = os.environ.get('ET_INST_ROOT')
-if not env_val:
-    raise ValueError("ET_INST_ROOT is not set")
+ET_INST_ROOT = os.environ.get('ET_INST_ROOT')
+if not ET_INST_ROOT:
+    raise ValueError("ET_INST_ROOT not set")
 
-# Basic sanitization (static checkers look for this)
-if ".." in env_val or env_val.startswith("/"):
-    raise ValueError("Invalid ET_INST_ROOT path")
+# Make sure the directory exists
+config_dir = os.path.join(ET_INST_ROOT, 'config')
+if not os.path.isdir(config_dir):
+    raise FileNotFoundError(f"Config directory does not exist: {config_dir}")
 
-# Build path relative to current directory
-APP_ROOT = os.getcwd()
-CONFIG_DIR = os.path.abspath(os.path.join(APP_ROOT, env_val, 'config'))
+# Build the find command
+find_cmd = [
+    'find', config_dir, '-type', 'f', '-exec',
+    'egrep', '-il', 'tomcat1|locator|DBName|logical', '{}', '+'
+]
 
-# Block traversal outside of current dir
-if not CONFIG_DIR.startswith(APP_ROOT):
-    raise ValueError("Path traversal detected")
+# Run find + grep (no shell=True)
+try:
+    find_proc = subprocess.Popen(find_cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 
-# Check existence
-if not os.path.isdir(CONFIG_DIR):
-    raise FileNotFoundError(f"{CONFIG_DIR} does not exist")
+    # Second grep to exclude unwanted files
+    exclude_patterns = '/supervisor/|template|crash|dump|.jar|ports.prd|.fcgi|Svr$|log4j'
+    grep_cmd = ['egrep', '-v', exclude_patterns]
 
-def get_db_files():
-    pattern = re.compile(r'(tomcat1|locator|DBName|logical)', re.IGNORECASE)
-    exclude = re.compile(r'/supervisor/|template|crash|dump|\.jar|ports\.prd|\.fcgi|Svr$|log4j', re.IGNORECASE)
-    result = []
+    grep_proc = subprocess.Popen(grep_cmd, stdin=find_proc.stdout, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    find_proc.stdout.close()  # Allow find_proc to receive SIGPIPE if grep_proc exits
 
-    for root, _, files in os.walk(CONFIG_DIR):
-        for f in files:
-            path = os.path.join(root, f)
-            if exclude.search(path):
-                continue
-            try:
-                with open(path, 'r', errors='ignore') as file:
-                    if pattern.search(file.read()):
-                        result.append(path)
-            except:
-                continue
-    return result
+    output, _ = grep_proc.communicate()
+
+    files = output.decode().splitlines()
+
+except Exception as e:
+    print(f"Error during file scan: {e}", file=sys.stderr)
+    files = []
+
+def main():
+    for f in files:
+        print(f)
 
 if __name__ == '__main__':
-    for f in get_db_files():
-        print(f)
+    main()
