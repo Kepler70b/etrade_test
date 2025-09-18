@@ -47,7 +47,11 @@ public class Main {
             Document doc= dbuilder.parse(sqld);
             Element root= doc.getDocument();
             NodeList node_list=root.getChildNodes();
-
+            String url=null;
+            String user=null;
+            String password=null;
+            String schema_str=null;
+            BufferedWriter m_bw=new BufferedWriter(new FileWriter(metaData_file));
             for(int i=0;i<node_list.getLength();i++){
                 Node node=node_list.item(i);
                 int type=node.getNodeType();
@@ -59,10 +63,30 @@ public class Main {
                     Node attr=attrs.item(j);
                     String attrName=attr.getNodeName();
                     String attrVal=attr.getNodeValue();
+
+                    if(attrName=='url'){
+                        url=attrVal
+                    }
+                    if(attrName=='user'){
+                        user=attrVal
+                    }
+                    if(attrName=='password'){
+                        password=attrVal
+                    }
+                    if(attrName=='schema'){
+                        schema_str=attrVal
+                    }
                     handleAttribute(attrName,attrVal);
-                    schema_str=attrVal;
-                alter_sql=alter_sql+schem_str;
-                int check=stmtSchema.executeUpdate(alter_sql);
+
+                    Properties sysProps=System.getProperties();
+                    sysProps.put("DYNAMIC_PREPARE","true");
+                    sysProps.put("USER",user);
+                    sysProps.put("PASSWORD",password);
+                    Connection conn=DriverManager.getConnection(url,user,password);
+                    String alter_sql="ALTER SESSION SET CURRENT_SCHEMA=";
+                    alter_sql=alter_sql+schema_str;
+                    Statement stmtSchema=conn.createStatement();
+                    int check=stmtSchema.executeUpdate(alter_sql);
                 }
             }
         }catch(Exception e){
